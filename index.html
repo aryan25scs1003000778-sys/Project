@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CalorieIQ — Burn Predictor</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:        #0a0c10;
+    --surface:   #111318;
+    --card:      #161b22;
+    --border:    #1f2733;
+    --accent:    #ff5c35;
+    --accent2:   #ff8c42;
+    --gold:      #ffd166;
+    --teal:      #06d6a0;
+    --text:      #e8eaf0;
+    --muted:     #6b7588;
+    --radius:    14px;
+    --glow:      0 0 40px rgba(255,92,53,0.18);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── BG noise overlay ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ── Ambient orbs ── */
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.12;
+    pointer-events: none;
+    z-index: 0;
+    animation: drift 14s ease-in-out infinite alternate;
+  }
+  .orb1 { width:500px;height:500px;background:#ff5c35;top:-180px;left:-100px; }
+  .orb2 { width:400px;height:400px;background:#3a86ff;bottom:-150px;right:-100px;animation-delay:-7s; }
+  @keyframes drift { from{transform:translate(0,0)} to{transform:translate(30px,20px)} }
+
+  /* ── Layout ── */
+  .wrapper {
+    position: relative; z-index: 1;
+    max-width: 900px; margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  /* ── Hero header ── */
+  header {
+    text-align: center;
+    margin-bottom: 52px;
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: rgba(255,92,53,0.12);
+    border: 1px solid rgba(255,92,53,0.3);
+    color: var(--accent);
+    font-size: 12px; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 5px 14px; border-radius: 999px;
+    margin-bottom: 20px;
+    animation: fadeDown 0.6s ease both;
+  }
+  .badge svg { width:13px;height:13px; }
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    animation: fadeDown 0.6s 0.1s ease both;
+  }
+  h1 span {
+    background: linear-gradient(135deg, var(--accent), var(--gold));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .subtitle {
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 1.05rem;
+    font-weight: 300;
+    animation: fadeDown 0.6s 0.2s ease both;
+  }
+
+  @keyframes fadeDown {
+    from { opacity:0; transform:translateY(-16px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+
+  /* ── Form card ── */
+  .form-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 40px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5), var(--glow);
+    animation: fadeUp 0.7s 0.25s ease both;
+  }
+  @keyframes fadeUp {
+    from { opacity:0; transform:translateY(24px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+
+  .section-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 18px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-label::after {
+    content:''; flex:1; height:1px; background: var(--border);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 18px;
+    margin-bottom: 28px;
+  }
+
+  .field { display: flex; flex-direction: column; gap: 7px; }
+
+  label {
+    font-size: 12px; font-weight: 500;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  input, select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    padding: 11px 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    appearance: none;
+    width: 100%;
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(255,92,53,0.12);
+  }
+  input::placeholder { color: #3d4456; }
+
+  /* Range slider */
+  .range-wrap { display:flex; align-items:center; gap:12px; }
+  .range-wrap input[type=range] {
+    flex:1; padding:0; height:4px;
+    background: var(--border);
+    border: none; border-radius: 999px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .range-val {
+    min-width: 46px; text-align: right;
+    font-size: 13px; font-weight: 600;
+    color: var(--accent2);
+  }
+
+  /* Exercise pills */
+  .pills { display:flex; flex-wrap:wrap; gap:9px; }
+  .pill {
+    padding: 7px 15px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+    transition: all 0.18s;
+    user-select: none;
+  }
+  .pill:hover { border-color: var(--accent); color: var(--text); }
+  .pill.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 18px rgba(255,92,53,0.35);
+  }
+
+  /* Gender toggle */
+  .toggle-row { display:flex; gap:10px; }
+  .toggle-btn {
+    flex:1; padding:10px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 13px; font-weight: 500;
+    cursor: pointer; text-align: center;
+    transition: all 0.18s;
+    user-select: none;
+  }
+  .toggle-btn.active {
+    background: rgba(255,92,53,0.15);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* CTA button */
+  .cta {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    font-family: 'Syne', sans-serif;
+    font-size: 15px; font-weight: 700;
+    letter-spacing: 0.05em;
+    border: none; border-radius: var(--radius);
+    cursor: pointer;
+    margin-top: 6px;
+    position: relative; overflow: hidden;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .cta:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(255,92,53,0.4); }
+  .cta:active { transform: translateY(0); }
+  .cta::after {
+    content:'';
+    position:absolute; inset:0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.12), transparent);
+  }
+
+  /* Result panel */
+  .result-panel {
+    margin-top: 32px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(255,92,53,0.07), rgba(255,140,66,0.04));
+    border: 1px solid rgba(255,92,53,0.25);
+    padding: 32px 36px;
+    display: none;
+    animation: popIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both;
+  }
+  .result-panel.show { display: block; }
+  @keyframes popIn {
+    from { opacity:0; transform:scale(0.94) translateY(10px); }
+    to   { opacity:1; transform:scale(1)    translateY(0); }
+  }
+
+  .result-header {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 22px;
+  }
+  .flame-icon {
+    font-size: 38px;
+    line-height: 1;
+    animation: flamePulse 1.4s ease-in-out infinite;
+  }
+  @keyframes flamePulse {
+    0%,100% { transform:scale(1)   rotate(-3deg); }
+    50%      { transform:scale(1.1) rotate(3deg); }
+  }
+  .result-label {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .calorie-number {
+    font-family: 'Syne', sans-serif;
+    font-size: 3.2rem; font-weight: 800;
+    line-height: 1;
+    background: linear-gradient(135deg, #ff5c35, #ffd166);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .metrics-row {
+    display: grid;
+    grid-template-columns: repeat(3,1fr);
+    gap: 14px;
+    margin-top: 22px;
+  }
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    text-align: center;
+  }
+  .metric-val {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.3rem; font-weight: 700;
+    color: var(--teal);
+  }
+  .metric-lbl {
+    font-size: 11px; color: var(--muted);
+    margin-top: 4px; letter-spacing: 0.04em;
+  }
+
+  /* Progress bar */
+  .bar-wrap {
+    margin-top: 22px;
+  }
+  .bar-label-row {
+    display:flex; justify-content:space-between;
+    font-size: 12px; color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .bar-track {
+    height: 8px; background: var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--gold));
+    border-radius: 999px;
+    width: 0%;
+    transition: width 1.2s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  /* Tip */
+  .tip-box {
+    margin-top: 20px;
+    padding: 14px 18px;
+    background: rgba(6,214,160,0.07);
+    border: 1px solid rgba(6,214,160,0.2);
+    border-radius: 12px;
+    font-size: 13px;
+    color: var(--teal);
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .tip-box .icon { font-size: 16px; flex-shrink:0; }
+
+  /* Error */
+  .error-msg {
+    color: #ff6b6b;
+    font-size: 13px;
+    margin-top: 12px;
+    text-align: center;
+    display: none;
+  }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    margin-top: 56px;
+    color: var(--muted);
+    font-size: 12px;
+    opacity: 0.6;
+  }
+
+  @media (max-width: 560px) {
+    .form-card { padding: 26px 20px; }
+    .metrics-row { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+
+<div class="wrapper">
+
+  <header>
+    <div class="badge">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8 6 4 9.5 4 13a8 8 0 0016 0c0-3.5-4-7-8-11z"/></svg>
+      AI-Powered Predictor
+    </div>
+    <h1>Predict Your<br/><span>Calorie Burn</span></h1>
+    <p class="subtitle">Fill in your workout details and let the model do the math.</p>
+  </header>
+
+  <div class="form-card">
+
+    <!-- Personal Info -->
+    <div class="section-label">Personal Info</div>
+    <div class="grid">
+      <div class="field">
+        <label>Age (years)</label>
+        <input type="number" id="age" min="10" max="90" placeholder="e.g. 28" value="28"/>
+      </div>
+      <div class="field">
+        <label>Weight (kg)</label>
+        <input type="number" id="weight" min="30" max="200" step="0.1" placeholder="e.g. 75" value="75"/>
+      </div>
+      <div class="field">
+        <label>Height (cm)</label>
+        <input type="number" id="height" min="100" max="220" placeholder="e.g. 178" value="178"/>
+      </div>
+    </div>
+
+    <div class="section-label" style="margin-bottom:14px;">Gender</div>
+    <div class="toggle-row" style="margin-bottom:28px;">
+      <div class="toggle-btn active" id="btn-male"   onclick="setGender('Male')">♂ Male</div>
+      <div class="toggle-btn"        id="btn-female" onclick="setGender('Female')">♀ Female</div>
+    </div>
+
+    <!-- Workout Info -->
+    <div class="section-label">Workout Details</div>
+    <div class="grid" style="margin-bottom:22px;">
+      <div class="field">
+        <label>Duration (min)</label>
+        <div class="range-wrap">
+          <input type="range" id="duration" min="5" max="120" step="5" value="45"
+                 oninput="document.getElementById('dur-val').textContent=this.value+'m'"/>
+          <span class="range-val" id="dur-val">45m</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Heart Rate (bpm)</label>
+        <div class="range-wrap">
+          <input type="range" id="heartrate" min="60" max="200" step="1" value="148"
+                 oninput="document.getElementById('hr-val').textContent=this.value"/>
+          <span class="range-val" id="hr-val">148</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Body Temp (°C)</label>
+        <div class="range-wrap">
+          <input type="range" id="bodytemp" min="36" max="41" step="0.1" value="38.2"
+                 oninput="document.getElementById('bt-val').textContent=parseFloat(this.value).toFixed(1)+'°'"/>
+          <span class="range-val" id="bt-val">38.2°</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Exercise Type -->
+    <div class="section-label">Exercise Type</div>
+    <div class="pills" id="exercise-pills" style="margin-bottom:30px;">
+      <div class="pill active" onclick="setExercise(this,'Running')">🏃 Running</div>
+      <div class="pill" onclick="setExercise(this,'Cycling')">🚴 Cycling</div>
+      <div class="pill" onclick="setExercise(this,'Swimming')">🏊 Swimming</div>
+      <div class="pill" onclick="setExercise(this,'Walking')">🚶 Walking</div>
+      <div class="pill" onclick="setExercise(this,'HIIT')">⚡ HIIT</div>
+      <div class="pill" onclick="setExercise(this,'Yoga')">🧘 Yoga</div>
+      <div class="pill" onclick="setExercise(this,'Weightlifting')">🏋️ Weightlifting</div>
+    </div>
+
+    <button class="cta" onclick="predict()">⚡ Predict Calories Burned</button>
+    <p class="error-msg" id="error-msg">Please fill in all fields correctly.</p>
+
+    <!-- Result -->
+    <div class="result-panel" id="result-panel">
+      <div class="result-header">
+        <div class="flame-icon">🔥</div>
+        <div>
+          <div class="result-label">Estimated Calories Burned</div>
+          <div class="calorie-number" id="calorie-result">—</div>
+        </div>
+      </div>
+
+      <div class="bar-wrap">
+        <div class="bar-label-row">
+          <span>Low effort</span><span>High effort</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="bar-fill"></div></div>
+      </div>
+
+      <div class="metrics-row">
+        <div class="metric">
+          <div class="metric-val" id="m-bmi">—</div>
+          <div class="metric-lbl">BMI</div>
+        </div>
+        <div class="metric">
+          <div class="metric-val" id="m-rate">—</div>
+          <div class="metric-lbl">kcal / min</div>
+        </div>
+        <div class="metric">
+          <div class="metric-val" id="m-equiv">—</div>
+          <div class="metric-lbl">🍕 Pizza slices</div>
+        </div>
+      </div>
+
+      <div class="tip-box" id="tip-box">
+        <span class="icon">💡</span>
+        <span id="tip-text"></span>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    Built with scikit-learn · Gradient Boosting Regressor · Synthetic training data
+  </footer>
+
+</div>
+
+<script>
+let selectedGender   = 'Male';
+let selectedExercise = 'Running';
+
+function setGender(g) {
+  selectedGender = g;
+  document.getElementById('btn-male').classList.toggle('active', g === 'Male');
+  document.getElementById('btn-female').classList.toggle('active', g === 'Female');
+}
+
+function setExercise(el, ex) {
+  selectedExercise = ex;
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+}
+
+/* ── Heuristic model (mirrors train_model.py formula) ── */
+const exerciseFactor = {
+  Running:1.15, Cycling:1.05, Swimming:1.20, Walking:0.70,
+  HIIT:1.30, Yoga:0.55, Weightlifting:0.90
+};
+
+function calcCalories(age, gender, weight, height, duration, hr, temp, exercise) {
+  const gNum = gender === 'Male' ? 1 : 0;
+  const ef   = exerciseFactor[exercise] || 1.0;
+  const cal  = (
+    (0.55 * hr) + (0.36 * weight) - (0.20 * age)
+    + (2.0 * duration) + (1.8 * temp) + (8.0 * gNum)
+  ) * ef;
+  return Math.max(20, cal);
+}
+
+const tips = {
+  Running:       "Increase your pace for the last 5 minutes to boost your afterburn effect.",
+  Cycling:       "Interval sprints during cycling can raise calorie burn by up to 20%.",
+  Swimming:      "Switching strokes (freestyle → breaststroke) targets more muscle groups.",
+  Walking:       "Add incline or carry light weights to increase walking intensity.",
+  HIIT:          "Keep rest intervals under 30 s to maintain elevated heart rate.",
+  Yoga:          "Power Yoga flows can triple the calorie burn of a relaxed session.",
+  Weightlifting: "Compound lifts (squats, deadlifts) burn significantly more than isolation."
+};
+
+function predict() {
+  const age      = parseFloat(document.getElementById('age').value);
+  const weight   = parseFloat(document.getElementById('weight').value);
+  const height   = parseFloat(document.getElementById('height').value);
+  const duration = parseFloat(document.getElementById('duration').value);
+  const hr       = parseFloat(document.getElementById('heartrate').value);
+  const temp     = parseFloat(document.getElementById('bodytemp').value);
+  const errEl    = document.getElementById('error-msg');
+
+  if ([age,weight,height,duration,hr,temp].some(v => isNaN(v) || v <= 0)) {
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+
+  const calories = calcCalories(age, selectedGender, weight, height, duration, hr, temp, selectedExercise);
+  const bmi      = weight / (height/100)**2;
+  const rate     = (calories / duration).toFixed(1);
+  const pizzaSlices = (calories / 285).toFixed(1);
+
+  // Animate counter
+  const panel = document.getElementById('result-panel');
+  panel.classList.add('show');
+
+  const el = document.getElementById('calorie-result');
+  let cur = 0, target = Math.round(calories), step = Math.ceil(target / 55);
+  el.textContent = '0 kcal';
+  const timer = setInterval(() => {
+    cur = Math.min(cur + step, target);
+    el.textContent = cur.toLocaleString() + ' kcal';
+    if (cur >= target) clearInterval(timer);
+  }, 22);
+
+  // Progress bar (max ~1200 kcal)
+  setTimeout(() => {
+    document.getElementById('bar-fill').style.width =
+      Math.min(100, (calories / 1200) * 100) + '%';
+  }, 80);
+
+  document.getElementById('m-bmi').textContent   = bmi.toFixed(1);
+  document.getElementById('m-rate').textContent  = rate;
+  document.getElementById('m-equiv').textContent = pizzaSlices;
+  document.getElementById('tip-text').textContent = tips[selectedExercise];
+
+  panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+</script>
+</body>
+</html>
